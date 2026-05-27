@@ -4,7 +4,7 @@ require("dotenv").config();
 
 const app = express();
 app.use(express.json());
-app.use(express.urlencoded({ extended: false })); // Required for Twilio0
+app.use(express.urlencoded({ extended: false })); // Required for Twilio
 
 // ── ENV Variables ──
 const GEMINI_KEY      = process.env.GEMINI_API_KEY;
@@ -87,7 +87,7 @@ Customer message: "${userMessage}"
 Your reply:
 `;
     const response = await axios.post(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${GEMINI_KEY}`,
       {
         contents: [{ parts: [{ text: prompt }] }],
         generationConfig: {
