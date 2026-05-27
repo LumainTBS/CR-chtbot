@@ -1,0 +1,20 @@
+{
+  "name": "code-red-chatbot",
+  "author": "Malumane Thembumenzi S",
+  "version": "1.0.0",
+  "description": "AI-integrated WhatsApp chatbot for Code Red Solutions, Mbabane Eswatini",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js"
+  },
+  "dependencies": {
+    "axios": "^1.6.0",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "git": "^0.1.5"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  }
+}
