@@ -4,13 +4,15 @@ require("dotenv").config();
 
 const app = express();
 app.use(express.json());
+app.use(express.urlencoded({ extended: false })); // Required for Twilio
 
-// ── ENV Variables (set these in Render or your .env file) ──
-const ACCESS_TOKEN   = process.env.ACCESS_TOKEN;
-const PHONE_ID       = process.env.PHONE_NUMBER_ID;
-const GEMINI_KEY     = process.env.GEMINI_API_KEY;
-const CATALOG_ID     = process.env.CATALOG_ID;
-const VERIFY_TOKEN   = "coderedtoken123"; // must match what you set in Meta Console
+// ── ENV Variables ──
+const GEMINI_KEY      = process.env.GEMINI_API_KEY;
+const CATALOG_ID      = process.env.CATALOG_ID;
+const ACCESS_TOKEN    = process.env.ACCESS_TOKEN;
+const TWILIO_ACCOUNT  = process.env.TWILIO_ACCOUNT_SID;
+const TWILIO_TOKEN    = process.env.TWILIO_AUTH_TOKEN;
+const TWILIO_NUMBER   = process.env.TWILIO_WHATSAPP_NUMBER; // e.g. whatsapp:+14155238886
 
 // ── Business Knowledge Base ──────────────────────────────────
 const KNOWLEDGE_BASE = `
@@ -49,34 +51,23 @@ IMPORTANT RULES:
 async function getCatalogue() {
   try {
     const response = await axios.get(
-      `https://graph.facebook.com/v18.0/${1516074050187034}/products`,
+      `https://graph.facebook.com/v18.0/${CATALOG_ID}/products`,
       {
         params: {
-          fields: "name,price,availability,description,quantity_to_sell_on_facebook,image_url",
+          fields: "name,price,availability,description,quantity_to_sell_on_facebook",
           limit: 50,
-          access_token: EAAWGbWAjY2UBRrBepTYVNMXLR7i5E9Cg8APBUPcFTJtVefcdhmPr0ZA6RHK2ZCXuGxb8M29Dte0ZC4f7y46APvZCNLwZABt0eAxHZB49gkaD4dLuwzquXVPNnjiIEL2FVF0jTlqdKAqc2qHh8Kz6o80IKo86GrzN5S2cZBDT8htr9iHWqRMZA54E7AhViLGt31rK9nCQX23Uq6VJ4mjPCRlLTjUULiksNiYZBgkZBqBam8QmcKqdL6ycNFZASf2bMY3rfprYKFucTLhl0pzBxiBZBqjrKAYXcpDCvDcIaAZDZD,
+          access_token: ACCESS_TOKEN,
         },
       }
     );
-
     const products = response.data.data;
-
-    if (!products || products.length === 0) {
-      return "No products currently listed in the catalogue.";
-    }
-
-    // Format catalogue into readable text for the AI
-    const formatted = products.map((p) => {
+    if (!products || products.length === 0) return "No products currently listed.";
+    return products.map((p) => {
       const qty = p.quantity_to_sell_on_facebook ?? "Unknown";
       const available = p.availability === "in stock" ? "✅ In Stock" : "❌ Out of Stock";
-      return `- ${p.name} | Price: E${p.price} | ${available} | Units left: ${qty}${p.description ? " | " + p.description : ""}`;
+      return `- ${p.name} | Price: E${p.price} | ${available} | Units left: ${qty}`;
     }).join("\n");
-
-    return formatted;
-
   } catch (err) {
-    console.error("Catalogue fetch error:", err.response?.data || err.message);
-    // If catalogue fetch fails, return a fallback so the bot still works
     return "Catalogue temporarily unavailable.";
   }
 }
@@ -84,9 +75,7 @@ async function getCatalogue() {
 // ── Ask Gemini AI ─────────────────────────────────────────────
 async function getAIReply(userMessage) {
   try {
-    // Fetch live catalogue every time a message comes in
     const catalogueData = await getCatalogue();
-
     const prompt = `
 ${KNOWLEDGE_BASE}
 
@@ -97,28 +86,25 @@ Customer message: "${userMessage}"
 
 Your reply:
 `;
-
     const response = await axios.post(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${AIzaSyB4EusGsKUYaKNIzJ_NaWMpVrer5pSBFdE}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`,
       {
         contents: [{ parts: [{ text: prompt }] }],
         generationConfig: {
-          temperature: 0.4,      // lower = more consistent, less random
-          maxOutputTokens: 300,  // keep replies short
+          temperature: 0.4,
+          maxOutputTokens: 300,
         },
       }
     );
-
     const reply = response.data.candidates?.[0]?.content?.parts?.[0]?.text;
     return reply || getFallbackReply();
-
   } catch (err) {
     console.error("Gemini error:", err.response?.data || err.message);
     return getFallbackReply();
   }
 }
 
-// ── Fallback reply if AI fails ────────────────────────────────
+// ── Fallback reply ────────────────────────────────────────────
 function getFallbackReply() {
   return (
     "Hi! 👋 Thanks for reaching out to Code Red Solutions.\n\n" +
@@ -128,21 +114,21 @@ function getFallbackReply() {
   );
 }
 
-// ── Send WhatsApp Message ─────────────────────────────────────
+// ── Send WhatsApp Message via Twilio ──────────────────────────
 async function sendMessage(to, message) {
   try {
+    const url = `https://api.twilio.com/2010-04-01/Accounts/${TWILIO_ACCOUNT}/Messages.json`;
     await axios.post(
-      `https://graph.facebook.com/v18.0/${+26879846902}/messages`,
+      url,
+      new URLSearchParams({
+        From: TWILIO_NUMBER,
+        To: `whatsapp:${to}`,
+        Body: message,
+      }),
       {
-        messaging_product: "whatsapp",
-        to: to,
-        type: "text",
-        text: { body: message },
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${EAAWGbWAjY2UBRrBepTYVNMXLR7i5E9Cg8APBUPcFTJtVefcdhmPr0ZA6RHK2ZCXuGxb8M29Dte0ZC4f7y46APvZCNLwZABt0eAxHZB49gkaD4dLuwzquXVPNnjiIEL2FVF0jTlqdKAqc2qHh8Kz6o80IKo86GrzN5S2cZBDT8htr9iHWqRMZA54E7AhViLGt31rK9nCQX23Uq6VJ4mjPCRlLTjUULiksNiYZBgkZBqBam8QmcKqdL6ycNFZASf2bMY3rfprYKFucTLhl0pzBxiBZBqjrKAYXcpDCvDcIaAZDZD}`,
-          "Content-Type": "application/json",
+        auth: {
+          username: TWILIO_ACCOUNT,
+          password: TWILIO_TOKEN,
         },
       }
     );
@@ -152,74 +138,27 @@ async function sendMessage(to, message) {
   }
 }
 
-// ── Send a "typing..." indicator (feels more natural) ──────────
-async function sendTypingIndicator(to, messageId) {
-  try {
-    await axios.post(
-      `https://graph.facebook.com/v18.0/${+26879846902}/messages`,
-      {
-        messaging_product: "whatsapp",
-        status: "read",
-        message_id: messageId,
-      },
-      { headers: { Authorization: `Bearer ${EAAWGbWAjY2UBRrBepTYVNMXLR7i5E9Cg8APBUPcFTJtVefcdhmPr0ZA6RHK2ZCXuGxb8M29Dte0ZC4f7y46APvZCNLwZABt0eAxHZB49gkaD4dLuwzquXVPNnjiIEL2FVF0jTlqdKAqc2qHh8Kz6o80IKo86GrzN5S2cZBDT8htr9iHWqRMZA54E7AhViLGt31rK9nCQX23Uq6VJ4mjPCRlLTjUULiksNiYZBgkZBqBam8QmcKqdL6ycNFZASf2bMY3rfprYKFucTLhl0pzBxiBZBqjrKAYXcpDCvDcIaAZDZD}` } }
-    );
-  } catch (_) {
-    // Non-critical — ignore errors here
-  }
-}
-
-// ── Webhook Verification (required by Meta) ───────────────────
-app.get("/webhook", (req, res) => {
-  const mode      = req.query["hub.mode"];
-  const token     = req.query["hub.verify_token"];
-  const challenge = req.query["hub.challenge"];
-
-  if (mode === "subscribe" && token === VERIFY_TOKEN) {
-    console.log("✅ Webhook verified by Meta");
-    res.status(200).send(challenge);
-  } else {
-    console.warn("❌ Webhook verification failed");
-    res.sendStatus(403);
-  }
-});
-
-// ── Receive Incoming Messages ─────────────────────────────────
+// ── Receive Incoming Messages from Twilio ─────────────────────
 app.post("/webhook", async (req, res) => {
-  // Always respond 200 immediately so Meta doesn't retry
-  res.sendStatus(200);
+  res.sendStatus(200); // Respond immediately
 
   try {
-    const body    = req.body;
-    const entry   = body.entry?.[0];
-    const change  = entry?.changes?.[0];
-    const value   = change?.value;
-    const message = value?.messages?.[0];
+    const from = req.body.From?.replace("whatsapp:", ""); // customer number
+    const text = req.body.Body; // their message
 
-    // Only process text messages
-    if (!message || message.type !== "text") return;
-
-    const from      = message.from;       // customer's phone number
-    const text      = message.text.body;  // their message
-    const messageId = message.id;
+    if (!from || !text) return;
 
     console.log(`📩 Message from ${from}: "${text}"`);
 
-    // Mark as read + send typing indicator
-    await sendTypingIndicator(from, messageId);
-
-    // Get AI reply (includes live catalogue)
     const reply = await getAIReply(text);
-
-    // Send reply back to customer
     await sendMessage(from, reply);
 
   } catch (err) {
-    console.error("Webhook processing error:", err.message);
+    console.error("Webhook error:", err.message);
   }
 });
 
-// ── Health Check Route (Render uses this to keep server alive) ─
+// ── Health Check ──────────────────────────────────────────────
 app.get("/", (req, res) => {
   res.send("✅ Code Red Solutions Chatbot is running.");
 });
