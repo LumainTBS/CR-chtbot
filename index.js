@@ -4,19 +4,17 @@ require("dotenv").config();
 
 const app = express();
 app.use(express.json());
-app.use(express.urlencoded({ extended: false })); // Required for Twilio
+app.use(express.urlencoded({ extended: false }));
 
 // ── ENV Variables ──
-const GEMINI_KEY      = process.env.GEMINI_API_KEY;
-const CATALOG_ID      = process.env.CATALOG_ID;
-const ACCESS_TOKEN    = process.env.ACCESS_TOKEN;
-const TWILIO_ACCOUNT  = process.env.TWILIO_ACCOUNT_SID;
-const TWILIO_TOKEN    = process.env.TWILIO_AUTH_TOKEN;
-const TWILIO_NUMBER   = process.env.TWILIO_WHATSAPP_NUMBER; // e.g. whatsapp:+14155238886
+const GEMINI_KEY     = process.env.GEMINI_API_KEY;
+const TWILIO_ACCOUNT = process.env.TWILIO_ACCOUNT_SID;
+const TWILIO_TOKEN   = process.env.TWILIO_AUTH_TOKEN;
+const TWILIO_NUMBER  = process.env.TWILIO_WHATSAPP_NUMBER;
 
-// ── Business Knowledge Base ──────────────────────────────────
+// ── Business Knowledge Base ───────────────────────────────────
 const KNOWLEDGE_BASE = `
-You are a friendly and professional customer service chatbot for 
+You are a friendly and professional customer service chatbot for
 Code Red Solutions, an IT company in Mbabane, Eswatini.
 
 ABOUT THE BUSINESS:
@@ -35,56 +33,45 @@ SERVICES OFFERED:
 - RAM / SSD Upgrades: E80 labour + parts cost
 - Network Setup: E200
 
+PRODUCTS IN STOCK:
+- HP 255 G9 Laptop | AMD Ryzen 3 | 8GB RAM | 256GB SSD | Price: E4,500 | Units: 3
+- Lenovo IdeaPad 3 | Intel Core i3 | 8GB RAM | 512GB SSD | Price: E5,200 | Units: 2
+- Dell Inspiron 15 | Intel Core i5 | 8GB RAM | 512GB SSD | Price: E6,800 | Units: 2
+- Acer Aspire 5 | AMD Ryzen 5 | 16GB RAM | 512GB SSD | Price: E7,500 | Units: 1
+- HP Pavilion x360 | Intel Core i5 | 8GB RAM | 256GB SSD | Touchscreen | Price: E8,200 | Units: 1
+- Lenovo ThinkPad E14 | Intel Core i5 | 16GB RAM | 512GB SSD | Price: E9,500 | Units: 2
+- Dell Latitude 3420 | Intel Core i5 | 8GB RAM | 256GB SSD | Price: E7,800 | Units: 1
+- HP 14s | Intel Celeron | 4GB RAM | 128GB SSD | Price: E3,200 | Units: 4
+- Acer Chromebook 314 | Intel Celeron | 4GB RAM | 64GB eMMC | Price: E2,800 | Units: 2
+- Lenovo V15 | AMD Ryzen 3 | 8GB RAM | 256GB SSD | Price: E4,800 | Units: 3
+- Samsung 8GB DDR4 RAM Stick | Price: E450 | Units: 10
+- Kingston 256GB SSD | Price: E380 | Units: 8
+- Kingston 512GB SSD | Price: E620 | Units: 6
+- Logitech Wireless Mouse | Price: E180 | Units: 15
+- HP Wireless Keyboard & Mouse Combo | Price: E350 | Units: 7
+- TP-Link WiFi Router | Price: E480 | Units: 5
+- HDMI Cable 1.8m | Price: E80 | Units: 20
+- USB-C Hub 7-in-1 | Price: E320 | Units: 6
+- Laptop Cooling Pad | Price: E220 | Units: 8
+- Antivirus Software (1 Year License) | Price: E150 | Units: 12
+
 IMPORTANT RULES:
 1. ONLY answer questions related to Code Red Solutions.
-2. Keep all replies SHORT, friendly and professional.
-3. If asked about a specific repair job status, say: 
-   "Let me check that for you — please hold while I connect you to our team."
-4. If a question is too complex or outside your knowledge, say:
-   "That's a great question — let me connect you to one of our technicians for that."
-5. Always end with a helpful follow-up like "Is there anything else I can help you with?"
-6. CRITICAL: Always write complete, full sentences. Never stop mid-sentence. If you are running out of space, finish your current sentence and stop there.
-7. Keep responses under 3 sentences maximum to ensure they are always complete.
-8. Do NOT make up prices or services not listed above.
-9. If stock information is provided, use it accurately in your response.
+2. Keep replies SHORT, friendly and professional.
+3. If asked about repair job status say: "Let me check that for you — please hold while I connect you to our team."
+4. If question is too complex say: "Let me connect you to one of our technicians for that."
+5. Always complete your sentences fully — never stop mid-sentence.
+6. Keep responses under 4 sentences to ensure they are always complete.
+7. Do NOT make up prices or services not listed above.
+8. Use stock data accurately — if Units is 0 say the item is out of stock.
+9. If stock is low (under 3 units) mention it so the customer can act fast.
 `;
-
-// ── Fetch Live Catalogue from Meta ───────────────────────────
-async function getCatalogue() {
-  try {
-    const response = await axios.get(
-      `https://graph.facebook.com/v18.0/${CATALOG_ID}/products`,
-      {
-        params: {
-          fields: "name,price,availability,description,quantity_to_sell_on_facebook",
-          limit: 50,
-          access_token: ACCESS_TOKEN,
-        },
-      }
-    );
-    const products = response.data.data;
-     console.log("Catalogue data:", JSON.stringify(products));
-    if (!products || products.length === 0) return "No products currently listed.";
-    return products.map((p) => {
-      const qty = p.quantity_to_sell_on_facebook ?? "Unknown";
-      const available = p.availability === "in stock" ? "✅ In Stock" : "❌ Out of Stock";
-      return `- ${p.name} | Price: E${p.price} | ${available} | Units left: ${qty}`;
-    }).join("\n");
-  } catch (err) {
-    console.log("Catalogue ERROR:", JSON.stringify(err.response?.data || err.message));
-    return "Catalogue temporarily unavailable.";
-}
-}
 
 // ── Ask Gemini AI ─────────────────────────────────────────────
 async function getAIReply(userMessage) {
   try {
-    const catalogueData = await getCatalogue();
     const prompt = `
 ${KNOWLEDGE_BASE}
-
-CURRENT PRODUCT CATALOGUE (live stock data):
-${catalogueData}
 
 Customer message: "${userMessage}"
 
@@ -96,7 +83,7 @@ Your reply:
         contents: [{ parts: [{ text: prompt }] }],
         generationConfig: {
           temperature: 0.2,
-          maxOutputTokens: 1000,
+          maxOutputTokens: 800,
         },
       }
     );
@@ -114,7 +101,7 @@ function getFallbackReply() {
     "Hi! 👋 Thanks for reaching out to Code Red Solutions.\n\n" +
     "We're here to help with all your IT needs in Mbabane.\n" +
     "Our team will get back to you shortly. ⏳\n\n" +
-    "Or visit us at our shop: Monday–Friday 8AM–5PM | Saturday 9AM–2PM."
+    "Visit us: Monday–Friday 8AM–5PM | Saturday 9AM–2PM."
   );
 }
 
@@ -144,11 +131,11 @@ async function sendMessage(to, message) {
 
 // ── Receive Incoming Messages from Twilio ─────────────────────
 app.post("/webhook", async (req, res) => {
-  res.status(200).end(); // Respond immediately
+  res.status(200).end();
 
   try {
-    const from = req.body.From?.replace("whatsapp:", ""); // customer number
-    const text = req.body.Body; // their message
+    const from = req.body.From?.replace("whatsapp:", "");
+    const text = req.body.Body;
 
     if (!from || !text) return;
 
