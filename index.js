@@ -92,7 +92,7 @@ Your reply:
         contents: [{ parts: [{ text: prompt }] }],
         generationConfig: {
           temperature: 0.4,
-          maxOutputTokens: 300,
+          maxOutputTokens: 500,
         },
       }
     );
