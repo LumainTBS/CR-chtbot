@@ -63,6 +63,7 @@ async function getCatalogue() {
       }
     );
     const products = response.data.data;
+     console.log("Catalogue data:", JSON.stringify(products));
     if (!products || products.length === 0) return "No products currently listed.";
     return products.map((p) => {
       const qty = p.quantity_to_sell_on_facebook ?? "Unknown";
