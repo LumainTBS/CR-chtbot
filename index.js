@@ -43,8 +43,10 @@ IMPORTANT RULES:
 4. If a question is too complex or outside your knowledge, say:
    "That's a great question — let me connect you to one of our technicians for that."
 5. Always end with a helpful follow-up like "Is there anything else I can help you with?"
-6. Do NOT make up prices or services not listed above.
-7. If stock information is provided, use it accurately in your response.
+6. CRITICAL: Always write complete, full sentences. Never stop mid-sentence. If you are running out of space, finish your current sentence and stop there.
+7. Keep responses under 3 sentences maximum to ensure they are always complete.
+8. Do NOT make up prices or services not listed above.
+9. If stock information is provided, use it accurately in your response.
 `;
 
 // ── Fetch Live Catalogue from Meta ───────────────────────────
@@ -91,8 +93,8 @@ Your reply:
       {
         contents: [{ parts: [{ text: prompt }] }],
         generationConfig: {
-          temperature: 0.4,
-          maxOutputTokens: 500,
+          temperature: 0.2,
+          maxOutputTokens: 1000,
         },
       }
     );
