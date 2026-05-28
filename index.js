@@ -71,8 +71,9 @@ async function getCatalogue() {
       return `- ${p.name} | Price: E${p.price} | ${available} | Units left: ${qty}`;
     }).join("\n");
   } catch (err) {
+    console.log("Catalogue ERROR:", JSON.stringify(err.response?.data || err.message));
     return "Catalogue temporarily unavailable.";
-  }
+}
 }
 
 // ── Ask Gemini AI ─────────────────────────────────────────────
