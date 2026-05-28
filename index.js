@@ -140,7 +140,7 @@ async function sendMessage(to, message) {
 
 // ── Receive Incoming Messages from Twilio ─────────────────────
 app.post("/webhook", async (req, res) => {
-  res.sendStatus(200); // Respond immediately
+  res.status(200).end(); // Respond immediately
 
   try {
     const from = req.body.From?.replace("whatsapp:", ""); // customer number
